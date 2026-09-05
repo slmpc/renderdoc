@@ -57,7 +57,7 @@ jobs:
           cmake -S . -B build \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_METAL=ON \
+            -DENABLE_METAL=OFF \
             -DENABLE_VULKAN=ON \
             -DENABLE_QRENDERDOC=ON \
             -DENABLE_RENDERDOCCMD=ON \
