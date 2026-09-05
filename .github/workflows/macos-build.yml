@@ -2,11 +2,13 @@ name: Build RenderDoc for macOS
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - v1.x
     tags:
       - "v*"
+
   pull_request:
     branches:
       - v1.x
@@ -24,14 +26,16 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 90
 
-    env:
-      PACKAGE_NAME: RenderDoc-macOS-${{ runner.arch }}-${{ github.sha }}.zip
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
+
+      - name: Set package name
+        run: |
+          echo "PACKAGE_NAME=RenderDoc-macOS-${RUNNER_ARCH}-${GITHUB_SHA}.zip" \
+            >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: |
@@ -40,6 +44,13 @@ jobs:
           QT5_PREFIX="$(brew --prefix qt@5)"
           echo "${QT5_PREFIX}/bin" >> "$GITHUB_PATH"
           echo "QMAKE_QT5=${QT5_PREFIX}/bin/qmake" >> "$GITHUB_ENV"
+
+      - name: Show tool versions
+        run: |
+          cmake --version
+          ninja --version
+          "$QMAKE_QT5" -v
+          clang --version
 
       - name: Configure
         run: |
@@ -60,6 +71,7 @@ jobs:
         run: |
           test -x build/bin/renderdoccmd
           test -x build/bin/qrenderdoc.app/Contents/MacOS/qrenderdoc
+
           file build/bin/renderdoccmd
           file build/bin/qrenderdoc.app/Contents/MacOS/qrenderdoc
 
@@ -81,8 +93,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RenderDoc-macOS-${{ runner.arch }}
-          path: ${{ env.PACKAGE_NAME }}
+          name: RenderDoc-macOS
+          path: RenderDoc-macOS-*.zip
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
