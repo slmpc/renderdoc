@@ -1,0 +1,88 @@
+name: Build RenderDoc for macOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v1.x
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - v1.x
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-macos:
+    name: macOS Release
+    runs-on: macos-14
+    timeout-minutes: 90
+
+    env:
+      PACKAGE_NAME: RenderDoc-macOS-${{ runner.arch }}-${{ github.sha }}.zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja automake pcre qt@5
+
+          QT5_PREFIX="$(brew --prefix qt@5)"
+          echo "${QT5_PREFIX}/bin" >> "$GITHUB_PATH"
+          echo "QMAKE_QT5=${QT5_PREFIX}/bin/qmake" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_METAL=ON \
+            -DENABLE_VULKAN=ON \
+            -DENABLE_QRENDERDOC=ON \
+            -DENABLE_RENDERDOCCMD=ON \
+            -DQMAKE_QT5_COMMAND="$QMAKE_QT5"
+
+      - name: Build
+        run: |
+          cmake --build build --parallel "$(sysctl -n hw.ncpu)"
+
+      - name: Verify outputs
+        run: |
+          test -x build/bin/renderdoccmd
+          test -x build/bin/qrenderdoc.app/Contents/MacOS/qrenderdoc
+          file build/bin/renderdoccmd
+          file build/bin/qrenderdoc.app/Contents/MacOS/qrenderdoc
+
+      - name: Bundle runtime dependencies
+        run: |
+          ./util/buildscripts/scripts/prepare_deps_macos.sh \
+            ./build/bin/qrenderdoc.app/Contents/MacOS/qrenderdoc
+
+      - name: Package
+        run: |
+          ditto -c -k \
+            --sequesterRsrc \
+            --keepParent \
+            build/bin \
+            "$PACKAGE_NAME"
+
+          ls -lh "$PACKAGE_NAME"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RenderDoc-macOS-${{ runner.arch }}
+          path: ${{ env.PACKAGE_NAME }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
